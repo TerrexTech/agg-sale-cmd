@@ -19,6 +19,7 @@ func validateEnv() error {
 
 		"KAFKA_CONSUMER_EVENT_TOPIC",
 		"KAFKA_CONSUMER_EVENT_QUERY_TOPIC",
+		"KAFKA_PRODUCER_EVENT_TOPIC",
 		"KAFKA_PRODUCER_EVENT_QUERY_TOPIC",
 		"KAFKA_PRODUCER_RESPONSE_TOPIC",
 
@@ -81,8 +82,8 @@ func main() {
 
 	for {
 		select {
-		case <-eventPoll.RoutinesCtx().Done():
-			err = errors.New("service-context closed")
+		case err := <-eventPoll.Wait():
+			err = errors.Wrap(err, "service-context closed")
 			log.Fatalln(err)
 
 		case eventResp := <-eventPoll.Delete():

@@ -36,7 +36,9 @@ func Update(collection *mongo.Collection, event *model.Event) *model.KafkaRespon
 			CorrelationID: event.CorrelationID,
 			Error:         err.Error(),
 			ErrorCode:     InternalError,
-			UUID:          event.TimeUUID,
+			EventAction:   event.EventAction,
+			ServiceAction: event.ServiceAction,
+			UUID:          event.UUID,
 		}
 	}
 
@@ -51,7 +53,9 @@ func Update(collection *mongo.Collection, event *model.Event) *model.KafkaRespon
 			CorrelationID: event.CorrelationID,
 			Error:         err.Error(),
 			ErrorCode:     InternalError,
-			UUID:          event.TimeUUID,
+			EventAction:   event.EventAction,
+			ServiceAction: event.ServiceAction,
+			UUID:          event.UUID,
 		}
 	}
 	if len(update) == 0 {
@@ -63,11 +67,13 @@ func Update(collection *mongo.Collection, event *model.Event) *model.KafkaRespon
 			CorrelationID: event.CorrelationID,
 			Error:         err.Error(),
 			ErrorCode:     InternalError,
-			UUID:          event.TimeUUID,
+			EventAction:   event.EventAction,
+			ServiceAction: event.ServiceAction,
+			UUID:          event.UUID,
 		}
 	}
 
-	if update["saleID"] != nil && update["saleID"] == (uuuid.UUID{}) {
+	if update["saleID"] != nil && update["saleID"] == (uuuid.UUID{}).String() {
 		err = errors.New("missing saleID")
 		err = errors.Wrap(err, "Update")
 		log.Println(err)
@@ -76,7 +82,9 @@ func Update(collection *mongo.Collection, event *model.Event) *model.KafkaRespon
 			CorrelationID: event.CorrelationID,
 			Error:         err.Error(),
 			ErrorCode:     InternalError,
-			UUID:          event.TimeUUID,
+			EventAction:   event.EventAction,
+			ServiceAction: event.ServiceAction,
+			UUID:          event.UUID,
 		}
 	}
 
@@ -99,7 +107,9 @@ func Update(collection *mongo.Collection, event *model.Event) *model.KafkaRespon
 				CorrelationID: event.CorrelationID,
 				Error:         err.Error(),
 				ErrorCode:     InternalError,
-				UUID:          event.TimeUUID,
+				EventAction:   event.EventAction,
+				ServiceAction: event.ServiceAction,
+				UUID:          event.UUID,
 			}
 		}
 	}
@@ -113,7 +123,9 @@ func Update(collection *mongo.Collection, event *model.Event) *model.KafkaRespon
 			CorrelationID: event.CorrelationID,
 			Error:         err.Error(),
 			ErrorCode:     DatabaseError,
-			UUID:          event.TimeUUID,
+			EventAction:   event.EventAction,
+			ServiceAction: event.ServiceAction,
+			UUID:          event.UUID,
 		}
 	}
 
@@ -130,14 +142,18 @@ func Update(collection *mongo.Collection, event *model.Event) *model.KafkaRespon
 			CorrelationID: event.CorrelationID,
 			Error:         err.Error(),
 			ErrorCode:     InternalError,
-			UUID:          event.TimeUUID,
+			EventAction:   event.EventAction,
+			ServiceAction: event.ServiceAction,
+			UUID:          event.UUID,
 		}
 	}
 
 	return &model.KafkaResponse{
 		AggregateID:   event.AggregateID,
 		CorrelationID: event.CorrelationID,
+		EventAction:   event.EventAction,
 		Result:        resultMarshal,
-		UUID:          event.TimeUUID,
+		ServiceAction: event.ServiceAction,
+		UUID:          event.UUID,
 	}
 }

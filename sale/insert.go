@@ -3,113 +3,77 @@ package sale
 import (
 	"encoding/json"
 	"log"
+	"os"
+	"time"
+
+	"github.com/TerrexTech/go-commonutils/commonutil"
+	"github.com/TerrexTech/go-kafkautils/kafka"
 
 	"github.com/TerrexTech/go-eventstore-models/model"
 	"github.com/TerrexTech/go-mongoutils/mongo"
 	"github.com/TerrexTech/uuuid"
-	"github.com/mongodb/mongo-go-driver/bson/objectid"
 	"github.com/pkg/errors"
 )
 
+var producer *kafka.Producer
+
 // Insert handles "insert" events.
 func Insert(collection *mongo.Collection, event *model.Event) *model.KafkaResponse {
-	sale := &Sale{}
-	err := json.Unmarshal(event.Data, sale)
+	switch event.ServiceAction {
+	case "saleValidated":
+		return saleValidated(collection, event)
+	default:
+		return saleCreated(collection, event)
+	}
+}
+
+func updateSale(s *Sale) bool {
+	if len(s.Items) == 0 {
+		return false
+	}
+	marshalItems, err := json.Marshal(s)
 	if err != nil {
-		err = errors.Wrap(err, "Insert: Error while unmarshalling Event-data")
+		err = errors.Wrap(err, "Error marshalling SaleItems")
 		log.Println(err)
-		return &model.KafkaResponse{
-			AggregateID:   event.AggregateID,
-			CorrelationID: event.CorrelationID,
-			Error:         err.Error(),
-			ErrorCode:     InternalError,
-			UUID:          event.TimeUUID,
-		}
+		return false
 	}
 
-	if sale.SaleID == (uuuid.UUID{}) {
-		err = errors.New("missing SaleID")
-		err = errors.Wrap(err, "Insert")
-		log.Println(err)
-		return &model.KafkaResponse{
-			AggregateID:   event.AggregateID,
-			CorrelationID: event.CorrelationID,
-			Error:         err.Error(),
-			ErrorCode:     InternalError,
-			UUID:          event.TimeUUID,
-		}
-	}
-	if len(sale.Items) == 0 {
-		err = errors.New("missing SaleItems")
-		err = errors.Wrap(err, "Insert")
-		log.Println(err)
-		return &model.KafkaResponse{
-			AggregateID:   event.AggregateID,
-			CorrelationID: event.CorrelationID,
-			Error:         err.Error(),
-			ErrorCode:     InternalError,
-			UUID:          event.TimeUUID,
-		}
-	}
-	if sale.Timestamp == 0 {
-		err = errors.New("missing Timestamp")
-		err = errors.Wrap(err, "Insert")
-		log.Println(err)
-		return &model.KafkaResponse{
-			AggregateID:   event.AggregateID,
-			CorrelationID: event.CorrelationID,
-			Error:         err.Error(),
-			ErrorCode:     InternalError,
-			UUID:          event.TimeUUID,
-		}
-	}
-
-	insertResult, err := collection.InsertOne(sale)
+	uid, err := uuuid.NewV4()
 	if err != nil {
-		err = errors.Wrap(err, "Insert: Error Inserting Sale into Mongo")
+		err = errors.Wrap(err, "Error generating UUID")
 		log.Println(err)
-		return &model.KafkaResponse{
-			AggregateID:   event.AggregateID,
-			CorrelationID: event.CorrelationID,
-			Error:         err.Error(),
-			ErrorCode:     DatabaseError,
-			UUID:          event.TimeUUID,
-		}
+		return false
 	}
-	insertedID, assertOK := insertResult.InsertedID.(objectid.ObjectID)
-	if !assertOK {
-		err = errors.New("error asserting InsertedID from InsertResult to ObjectID")
-		err = errors.Wrap(err, "Insert")
-		log.Println(err)
-		return &model.KafkaResponse{
-			AggregateID:   event.AggregateID,
-			CorrelationID: event.CorrelationID,
-			Error:         err.Error(),
-			ErrorCode:     InternalError,
-			UUID:          event.TimeUUID,
+	e := model.Event{
+		AggregateID:   2,
+		EventAction:   "update",
+		ServiceAction: "createSale",
+		Data:          marshalItems,
+		NanoTime:      time.Now().UnixNano(),
+		UUID:          uid,
+		Version:       0,
+		YearBucket:    2018,
+	}
+
+	if producer == nil {
+		kafkaBrokersStr := os.Getenv("KAFKA_BROKERS")
+		producer, err = kafka.NewProducer(&kafka.ProducerConfig{
+			KafkaBrokers: *commonutil.ParseHosts(kafkaBrokersStr),
+		})
+		if err != nil {
+			err = errors.Wrap(err, "ValidateSale: Error creating producer")
+			log.Println(err)
+			return false
 		}
 	}
 
-	sale.ID = insertedID
-
-	result, err := json.Marshal(sale)
+	topic := os.Getenv("KAFKA_PRODUCER_EVENT_TOPIC")
+	result, err := json.Marshal(e)
 	if err != nil {
-		err = errors.Wrap(err, "Insert: Error marshalling Sale Insert-result")
+		err = errors.Wrap(err, "Insert: Error marshalling result")
 		log.Println(err)
-		return &model.KafkaResponse{
-			AggregateID:   event.AggregateID,
-			CorrelationID: event.CorrelationID,
-			Error:         err.Error(),
-			ErrorCode:     InternalError,
-			UUID:          event.TimeUUID,
-		}
+		return false
 	}
-
-	return &model.KafkaResponse{
-		AggregateID: event.AggregateID,
-		// Action:        "insert",
-		CorrelationID: event.CorrelationID,
-		Result:        result,
-		UUID:          event.TimeUUID,
-	}
+	producer.Input() <- kafka.CreateMessage(topic, result)
+	return true
 }
