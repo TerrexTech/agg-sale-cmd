@@ -88,6 +88,9 @@ func main() {
 
 		case eventResp := <-eventPoll.Delete():
 			go func(eventResp *poll.EventResponse) {
+				if eventResp == nil {
+					return
+				}
 				err := eventResp.Error
 				if err != nil {
 					err = errors.Wrap(err, "Error in Delete-EventResponse")
@@ -102,6 +105,9 @@ func main() {
 
 		case eventResp := <-eventPoll.Insert():
 			go func(eventResp *poll.EventResponse) {
+				if eventResp == nil {
+					return
+				}
 				err := eventResp.Error
 				if err != nil {
 					err = errors.Wrap(eventResp.Error, "Error in Insert-EventResponse")
@@ -116,6 +122,9 @@ func main() {
 
 		case eventResp := <-eventPoll.Update():
 			go func(eventResp *poll.EventResponse) {
+				if eventResp == nil {
+					return
+				}
 				err := eventResp.Error
 				if err != nil {
 					err = errors.Wrap(err, "Error in Update-EventResponse")
