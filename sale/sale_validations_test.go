@@ -60,11 +60,11 @@ var _ = Describe("SaleAggregate", func() {
 				SaleID: saleID,
 				Items: []SoldItem{
 					SoldItem{
-						ItemID:  itemID,
-						Barcode: "test-barcode",
-						Weight:  12.24,
-						Lot:     "test-lot",
-						SKU:     "test-sku",
+						ItemID: itemID,
+						UPC:    "test-upc",
+						Weight: 12.24,
+						Lot:    "test-lot",
+						SKU:    "test-sku",
 					},
 				},
 				Timestamp: time.Now().Unix(),

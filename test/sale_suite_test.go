@@ -9,6 +9,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/TerrexTech/agg-inventory-cmd/inventory"
+	"github.com/TerrexTech/go-mongoutils/mongo"
+
 	"github.com/Shopify/sarama"
 	"github.com/TerrexTech/agg-sale-cmd/sale"
 	"github.com/TerrexTech/go-commonutils/commonutil"
@@ -74,6 +77,8 @@ var _ = Describe("SaleAggregate", func() {
 
 		mockSale  *sale.Sale
 		mockEvent *model.Event
+
+		invColl *mongo.Collection
 	)
 	BeforeSuite(func() {
 		kafkaBrokers = *commonutil.ParseHosts(
@@ -93,15 +98,31 @@ var _ = Describe("SaleAggregate", func() {
 		itemID, err := uuuid.NewV4()
 		Expect(err).ToNot(HaveOccurred())
 
+		db := os.Getenv("MONGO_DATABASE")
+		invColl, err = loadMongoCollection(db, "agg_inventory", &inventory.Inventory{})
+		Expect(err).ToNot(HaveOccurred())
+		mockInv := inventory.Inventory{
+			ItemID:      itemID,
+			Lot:         "test-lot",
+			Name:        "test-name",
+			Origin:      "test-origin",
+			SKU:         "test-sku",
+			UPC:         "test-upc",
+			SoldWeight:  0,
+			TotalWeight: 200,
+		}
+		_, err = invColl.InsertOne(mockInv)
+		Expect(err).ToNot(HaveOccurred())
+
 		mockSale = &sale.Sale{
 			SaleID: saleID,
 			Items: []sale.SoldItem{
 				sale.SoldItem{
-					ItemID:  itemID,
-					Barcode: "test-barcode",
-					Weight:  12.24,
-					Lot:     "test-lot",
-					SKU:     "test-sku",
+					ItemID: itemID,
+					UPC:    "test-upc",
+					Weight: 12.24,
+					Lot:    "test-lot",
+					SKU:    "test-sku",
 				},
 			},
 			Timestamp: time.Now().Unix(),
@@ -135,7 +156,6 @@ var _ = Describe("SaleAggregate", func() {
 			Expect(err).ToNot(HaveOccurred())
 			producer.Input() <- kafka.CreateMessage(eventsTopic, marshalEvent)
 
-			var createEvent *model.Event
 			// Check if MockEvent was processed correctly
 			Byf("Consuming Result")
 			c, err := kafka.NewConsumer(&kafka.ConsumerConfig{
@@ -149,13 +169,14 @@ var _ = Describe("SaleAggregate", func() {
 				err := json.Unmarshal(msg.Value, event)
 				Expect(err).ToNot(HaveOccurred())
 
-				sale := &sale.Sale{}
-				err = json.Unmarshal(event.Data, sale)
+				if event.UUID == mockEvent.UUID {
+					sale := &sale.Sale{}
+					err = json.Unmarshal(event.Data, sale)
 
-				if err == nil && sale.SaleID == mockSale.SaleID {
-					Expect(sale).To(Equal(mockSale))
-					createEvent = event
-					return true
+					if err == nil && sale.SaleID == mockSale.SaleID {
+						Expect(sale).To(Equal(mockSale))
+						return true
+					}
 				}
 				return false
 			}
@@ -163,25 +184,29 @@ var _ = Describe("SaleAggregate", func() {
 			handler := &msgHandler{msgCallback}
 			c.Consume(context.Background(), handler)
 
-			_ = createEvent
-			// Byf("Checking if record got inserted into Database")
-			// aggColl, err := loadAggCollection()
-			// Expect(err).ToNot(HaveOccurred())
+			Byf("Checking if record got inserted into Database")
+			aggColl, err := loadAggCollection()
+			Expect(err).ToNot(HaveOccurred())
 
-			// // Can't search directly in Mongo if using embedded-arrays
-			// mockFindSale := *mockSale
-			// mockFindSale.Items = []sale.SoldItem{}
-			// findResult, err := aggColl.FindOne(mockFindSale)
-			// commonutil.ErrorStackTrace(err)
-			// Expect(err).ToNot(HaveOccurred())
+			// Wait for events to be processed and sale to be added.
+			time.Sleep(5 * time.Second)
+			// Can't search directly in Mongo if using embedded-arrays
+			mockFindSale := *mockSale
+			mockFindSale.Items = []sale.SoldItem{}
 
-			// findSale, assertOK := findResult.(*sale.Sale)
-			// Expect(assertOK).To(BeTrue())
-			// mockSale.ID = findSale.ID
-			// Expect(findSale).To(Equal(mockSale))
-			log.Fatalln("")
+			findResult, err := aggColl.FindOne(mockFindSale)
+			Expect(err).ToNot(HaveOccurred())
+
+			findSale, assertOK := findResult.(*sale.Sale)
+			Expect(assertOK).To(BeTrue())
+			mockSale.ID = findSale.ID
+			Expect(findSale).To(Equal(mockSale))
+
+			invColl.FindOne(map[string]interface{}{
+				"itemID": mockSale.Items[0].ItemID.String(),
+			})
 			close(done)
-		}, 20)
+		}, 25)
 
 		It("should update record", func(done Done) {
 			Byf("Creating update args")
@@ -200,8 +225,6 @@ var _ = Describe("SaleAggregate", func() {
 			mockUpdateSale.Items = []sale.SoldItem{}
 			mockUpdateSale.SaleID = uuuid.UUID{}
 
-			log.Printf("%+v", filterSale)
-			log.Printf("%+v", mockUpdateSale)
 			update := map[string]interface{}{
 				"filter": filterSale,
 				"update": &mockUpdateSale,
@@ -272,13 +295,11 @@ var _ = Describe("SaleAggregate", func() {
 			findResult, err := aggColl.FindOne(mockUpdateSaleFind)
 			Expect(err).ToNot(HaveOccurred())
 			findSale, assertOK := findResult.(*sale.Sale)
-			log.Printf("%+v", mockUpdateSale)
-			log.Printf("%+v", findSale)
 			Expect(assertOK).To(BeTrue())
 			Expect(findSale).To(Equal(mockSale))
 
 			close(done)
-		}, 2000)
+		}, 20)
 
 		It("should delete record", func(done Done) {
 			Byf("Creating delete args")
@@ -346,6 +367,6 @@ var _ = Describe("SaleAggregate", func() {
 			Expect(err).To(HaveOccurred())
 
 			close(done)
-		}, 2000)
+		}, 20)
 	})
 })

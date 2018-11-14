@@ -22,11 +22,11 @@ type Sale struct {
 
 // SoldItem defines an item in a sale.
 type SoldItem struct {
-	ItemID  uuuid.UUID `bson:"itemID,omitempty" json:"itemID,omitempty"`
-	Barcode string     `bson:"barcode,omitempty" json:"barcode,omitempty"`
-	Weight  float64    `bson:"weight,omitempty" json:"weight,omitempty"`
-	Lot     string     `bson:"lot,omitempty" json:"lot,omitempty"`
-	SKU     string     `bson:"sku,omitempty" json:"sku,omitempty"`
+	ItemID uuuid.UUID `bson:"itemID,omitempty" json:"itemID,omitempty"`
+	UPC    string     `bson:"upc,omitempty" json:"upc,omitempty"`
+	Weight float64    `bson:"weight,omitempty" json:"weight,omitempty"`
+	Lot    string     `bson:"lot,omitempty" json:"lot,omitempty"`
+	SKU    string     `bson:"sku,omitempty" json:"sku,omitempty"`
 }
 
 // BSON#Unmarshal errors out when unmarshalling to map due to presence of array.
@@ -47,11 +47,11 @@ type saleJSON struct {
 }
 
 type soldItemXSON struct {
-	ItemID  string  `bson:"itemID,omitempty" json:"itemID,omitempty"`
-	Barcode string  `bson:"barcode,omitempty" json:"barcode,omitempty"`
-	Weight  float64 `bson:"weight,omitempty" json:"weight,omitempty"`
-	Lot     string  `bson:"lot,omitempty" json:"lot,omitempty"`
-	SKU     string  `bson:"sku,omitempty" json:"sku,omitempty"`
+	ItemID string  `bson:"itemID,omitempty" json:"itemID,omitempty"`
+	UPC    string  `bson:"upc,omitempty" json:"upc,omitempty"`
+	Weight float64 `bson:"weight,omitempty" json:"weight,omitempty"`
+	Lot    string  `bson:"lot,omitempty" json:"lot,omitempty"`
+	SKU    string  `bson:"sku,omitempty" json:"sku,omitempty"`
 }
 
 // MarshalBSON returns bytes of BSON-type.
@@ -59,11 +59,11 @@ func (s Sale) MarshalBSON() ([]byte, error) {
 	items := make([]map[string]interface{}, 0)
 	for _, item := range s.Items {
 		items = append(items, map[string]interface{}{
-			"itemID":  item.ItemID.String(),
-			"barcode": item.Barcode,
-			"weight":  item.Weight,
-			"lot":     item.Lot,
-			"sku":     item.SKU,
+			"itemID": item.ItemID.String(),
+			"upc":    item.UPC,
+			"weight": item.Weight,
+			"lot":    item.Lot,
+			"sku":    item.SKU,
 		})
 	}
 
@@ -89,11 +89,11 @@ func (s *Sale) MarshalJSON() ([]byte, error) {
 	items := make([]map[string]interface{}, 0)
 	for _, item := range s.Items {
 		items = append(items, map[string]interface{}{
-			"itemID":  item.ItemID.String(),
-			"barcode": item.Barcode,
-			"weight":  item.Weight,
-			"lot":     item.Lot,
-			"sku":     item.SKU,
+			"itemID": item.ItemID.String(),
+			"upc":    item.UPC,
+			"weight": item.Weight,
+			"lot":    item.Lot,
+			"sku":    item.SKU,
 		})
 	}
 
@@ -144,11 +144,11 @@ func (s *Sale) UnmarshalBSON(in []byte) error {
 			return err
 		}
 		s.Items = append(s.Items, SoldItem{
-			ItemID:  itemID,
-			Barcode: item.Barcode,
-			Weight:  item.Weight,
-			Lot:     item.Lot,
-			SKU:     item.SKU,
+			ItemID: itemID,
+			UPC:    item.UPC,
+			Weight: item.Weight,
+			Lot:    item.Lot,
+			SKU:    item.SKU,
 		})
 	}
 	return nil
@@ -188,11 +188,11 @@ func (s *Sale) UnmarshalJSON(in []byte) error {
 			return err
 		}
 		s.Items = append(s.Items, SoldItem{
-			ItemID:  itemID,
-			Barcode: item.Barcode,
-			Weight:  item.Weight,
-			Lot:     item.Lot,
-			SKU:     item.SKU,
+			ItemID: itemID,
+			UPC:    item.UPC,
+			Weight: item.Weight,
+			Lot:    item.Lot,
+			SKU:    item.SKU,
 		})
 	}
 	return nil

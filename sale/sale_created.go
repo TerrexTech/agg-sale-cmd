@@ -119,7 +119,24 @@ func saleCreated(collection *mongo.Collection, event *model.Event) *model.KafkaR
 			UUID:          event.UUID,
 		}
 	}
-	log.Println("99999999999999999999")
+
+	_, err = collection.FindOne(map[string]interface{}{
+		"saleID": sale.SaleID.String(),
+	})
+	if err == nil {
+		err = errors.New("the sale is already inserted")
+		log.Println(err)
+		return &model.KafkaResponse{
+			AggregateID:   event.AggregateID,
+			CorrelationID: event.CorrelationID,
+			Error:         err.Error(),
+			ErrorCode:     InternalError,
+			EventAction:   event.EventAction,
+			ServiceAction: event.ServiceAction,
+			UUID:          event.UUID,
+		}
+	}
+
 	mm := map[string]interface{}{}
 	json.Unmarshal(marshalItems, &mm)
 	e := model.Event{
@@ -155,8 +172,7 @@ func saleCreated(collection *mongo.Collection, event *model.Event) *model.KafkaR
 	}
 
 	topic := os.Getenv("KAFKA_PRODUCER_EVENT_TOPIC")
-	de, _ := json.Marshal(e)
-	log.Println(string(de))
-	producer.Input() <- kafka.CreateMessage(topic, de)
+	me, _ := json.Marshal(e)
+	producer.Input() <- kafka.CreateMessage(topic, me)
 	return nil
 }
